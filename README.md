@@ -31,7 +31,6 @@ composition, the defaults, and the convenience layer on top. Rubble is that laye
 |---|---|---|---|
 | Bedrock Runtime (`Converse`, `InvokeModel`) | one endpoint, many models, streaming | one OpenAI-compatible endpoint in front of your model servers, routed by the `model` field | [agentgateway](https://agentgateway.dev) |
 | Model catalog, aliases, failover | discoverable model IDs, weighted routing | `AgentgatewayModel` resources, virtual models | agentgateway |
-| Custom model import | bring a model file, get an endpoint | model files in S3 → a Deployment per model (llama.cpp reference) | recipe |
 | Guardrails | filter prompts and responses | regex, webhook and moderation guards at the gateway; Rubble ships a webhook classifier | agentgateway + Rubble |
 | Knowledge Bases | S3 → chunks → embeddings → vector store → `retrieve` | bucket-per-KB ingestion job, Qdrant collection, `kb` MCP server | Rubble |
 | **AgentCore Runtime** | host agent containers, sessions, `/invocations` + `/ping`, A2A | a base image and a Deployment template; sessions persisted to S3 | Rubble + Strands |
@@ -51,7 +50,7 @@ Rubble runs anywhere these exist. The reference instance is a homelab: a small k
 cluster, two AMD APUs and one CUDA box running llama.cpp, an S3 store on a NAS.
 
 - **Kubernetes** — any distribution; developed on k3s. 1.37+ for scale-to-zero; gVisor on the workers for the code interpreter; a KVM node only if you want Kata microVMs.
-- **A model server** with an OpenAI-compatible API — [llama.cpp server](https://github.com/ggml-org/llama.cpp) is the reference; vLLM and Ollama work too.
+- **A model server** with an OpenAI-compatible API — [llama.cpp server](https://github.com/ggml-org/llama.cpp) is the reference; vLLM and Ollama work too, and so do cloud providers through the gateway. Rubble ships no model-serving layer: any running llama.cpp will do, and you keep your flags.
 - **S3-compatible object storage** — Garage, MinIO, SeaweedFS, or real S3.
 - **Identity** — Rubble ships a pre-configured Keycloak (realm, organizations, the SPIFFE
   exchange, clients for console, CLI and agents). Bring your own IdP if you have one; it
@@ -68,10 +67,10 @@ cluster, two AMD APUs and one CUDA box running llama.cpp, an S3 store on a NAS.
                               │          policies: guardrails, tool RBAC, rate limits, tracing
        ┌──────────────────────┼──────────────────────────┐
   models (/v1)           tools (/mcp)                 agents (/agents/<name>)
-  llama.cpp etc.         MCP servers, OpenAPI→MCP     one Deployment per agent
+  your llama.cpp etc.    MCP servers, OpenAPI→MCP     one Deployment per agent
                          kb · memory · registry       Strands + rubble-agents
                                                       sessions → S3
-  S3: models/ · sessions/ · kb-*/        Qdrant: kb_*, memory_*        Postgres: memory events
+  S3: sessions/ · kb-*/                  Qdrant: kb_*, memory_*        Postgres: memory events
   Registry: agentregistry                Observability: OTel → Tempo/Prometheus → Grafana
 ```
 

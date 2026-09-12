@@ -38,7 +38,7 @@ The audit-trail invariant ("agent definitions come only from git") holds in all 
 
 | profile | target | what it assumes | footprint (estimate, to be measured) |
 |---|---|---|---|
-| **quickstart** | one node: kind, k3d, k3s, a 16 GB VM | nothing external. Every addon bundled single-replica, self-signed TLS on `*.rubble.localhost` or an `sslip.io` name, a CPU-only small model, secrets generated locally, `applier: local` | ~6 GB RAM without observability, ~9 GB with, +4 GB for a 4B Q4 model on CPU |
+| **quickstart** | one node: kind, k3d, k3s, a 16 GB VM | nothing external except **one OpenAI-compatible endpoint you already run** (a llama.cpp on the host, Ollama, or a provider key). Every addon bundled single-replica, self-signed TLS on `*.rubble.localhost` or an `sslip.io` name, secrets generated locally, `applier: local` | ~6 GB RAM without observability, ~9 GB with |
 | **homelab** | a few nodes, a GPU or two | bundled addons where cheap, BYO where you already have it (NAS S3, existing Keycloak), `applier: argocd`, real TLS via cert-manager | as quickstart plus HA for the DB and identity |
 | **production** | many nodes, multi-tenant | BYO object store, IdP federation, external secrets, HA everything, GPU nodes labelled, sandbox runtime installed | sized per tenant |
 
@@ -58,8 +58,8 @@ the profile shown, replaceable by BYO · **BYO** = never bundled, a value pointi
 | CloudNativePG operator + `rubble-pg` cluster | Postgres for memory events, KB ledger, Keycloak, registry | **addon** | a connection string per database | on / on / BYO-or-on | `cloudnative-pg/charts` | Apache-2.0 |
 | Garage | S3 for sessions, KBs, models, traces (the S3 in "S3 and so on") | **addon** | any S3: endpoint + key per tenant bucket | on / on-or-BYO / BYO | Garage's `script/helm/garage` (vendored) | **AGPL-3.0** — shipped as an unmodified container, which is fine; documented |
 | Qdrant | vectors for KBs and memory (Knowledge Bases, Memory) | **addon** | your Qdrant URL + key | on / on / on-or-BYO | `qdrant/qdrant-helm` | Apache-2.0 |
-| model packs: llama.cpp server Deployments per model, models pulled from S3 | the models (Bedrock Runtime backends, Custom model import) | **addon**, one chart `charts/model` instantiated per model from a catalog file | any OpenAI-compatible endpoint, **including cloud providers** — agentgateway fronts OpenAI, Anthropic, Vertex, Bedrock natively, so "Bedrock at home" can also route to real Bedrock | one small CPU model (e.g. a 4B Q4) + one embedding model / your GPU models / BYO or GPU | Rubble's own | llama.cpp MIT; model weights carry their own licenses |
-| embedding model | KB and memory vectors | part of model packs | any OpenAI-compatible `/v1/embeddings` | on / on / on | as above | |
+| models | the models behind the endpoint (Bedrock Runtime backends) | **BYO, always.** Rubble ships no model-serving layer: any OpenAI-compatible server — llama.cpp, vLLM, Ollama, or a cloud provider, since agentgateway fronts OpenAI, Anthropic, Vertex and Bedrock natively. Each endpoint is one `AgentgatewayModel` entry in values (name, URL, optional key, capabilities: vision, tools, embeddings). | — | quickstart: point at a llama.cpp on the host (`host.docker.internal` from kind) or a provider key / your GPU servers / same | — | model weights carry their own licenses |
+| embedding model | KB and memory vectors | **BYO**: any `/v1/embeddings` endpoint, dimension read at KB creation | — | same as models | — | |
 | agentregistry | catalog (Registry) | **addon** | — | off / on / on | `ghcr.io/agentregistry-dev/agentregistry/charts` (0.4+) | Apache-2.0 |
 | kube-prometheus-stack, Loki, Tempo, Alloy or otel-collector | metrics, logs, traces, dashboards (Observability) | **addon** | an OTLP endpoint + Prometheus remote-write URL | off / on / on-or-BYO | prometheus-community, grafana | Apache-2.0 / **AGPL-3.0** (Grafana, Loki, Tempo) |
 | cert-manager | real TLS | **addon** | your certs as a Secret | off (self-signed) / on / on | `charts.jetstack.io` | Apache-2.0 |
@@ -100,7 +100,7 @@ production path; SOPS is the zero-dependency path. Both feed the same Secret nam
 | D1 | applier for quickstart | `local` (CLI applies what it committed) · always ArgoCD · a tiny in-cluster git server + ArgoCD | `local`. ArgoCD needs a reachable git remote, which a laptop quickstart does not have; the audit trail is the local repo's history, which is real. |
 | D2 | Keycloak packaging | official image + realm import JSON · keycloak-operator | official image + `--import-realm`: fewer moving parts, the operator adds a CRD layer for no gain at this size. Blocker inherited: production mode breaks the SPIFFE exchange in the reference instance; must be root-caused before the addon ships (it cannot ship `start-dev`). |
 | D3 | object store default | Garage · SeaweedFS · MinIO | Garage: small, S3-faithful enough, proven in the reference instance. AGPL is fine for an unmodified container; say so in the docs. MinIO's community edition is no longer a safe default. |
-| D4 | model pack catalog | curated list in the repo (name → GGUF URL → llama.cpp flags → VRAM) · anything from Hugging Face by URL | both: curated presets for the quickstart, any URL for the rest. The reference instance's tier files carry the measured flags; port them as presets. |
+| D4 | models | ~~ship model packs~~ · **BYO endpoints only** | Settled 2026-09-12 (Jan): no model-serving layer. Any running llama.cpp will do. The docs carry a short "serving models for Rubble" page with the reference instance's measured llama.cpp flags as *examples*, not as a chart. |
 | D5 | how the CLI is delivered | `curl \| sh` from `get.rubble.cloud` + GitHub releases · pip only | both, and `pipx install rubble-agents` as the Python-native path. The script verifies a checksum. |
 | D6 | what lives under `rubble.cloud` | docs, `get.` script, chart index; later: a hosted "try it" instance | docs + get + chart index now. A hosted instance is a separate product decision. |
 | D7 | vendored vs referenced upstream charts | pin versions in `Chart.yaml` and let Helm fetch · vendor tarballs into the repo | pin and fetch, with a lockfile; vendor only what has no chart (agent-sandbox manifests, Garage's in-repo chart). |
@@ -112,11 +112,10 @@ production path; SOPS is the zero-dependency path. Both feed the same Secret nam
    from the reference instance's umbrella charts. Profiles as values files.
 2. `rubble cluster check` and `init` (repo scaffolding, SOPS secrets, profile values).
 3. `rubble cluster up` with `applier: local`; then `applier: argocd`.
-4. Model packs chart + curated catalog with the reference instance's measured presets.
-5. gVisor node addon.
-6. `get.rubble.cloud`, chart index, docs site.
+4. gVisor node addon.
+5. `get.rubble.cloud`, chart index, docs site (including the "serving models for Rubble" page).
 
 Exit criterion for the quickstart, observed not assumed: a fresh 16 GB VM with k3s, no GPU,
-runs `check → init → up` and reaches a working console, a chat in the playground on the
-CPU model, and a deployed first agent, in under 30 minutes wall-clock including image
+runs `check → init → up` against a llama.cpp already running on the host and reaches a
+working console, a chat in the playground, and a deployed first agent, in under 30 minutes wall-clock including image
 pulls, with no step outside the four commands.
