@@ -29,7 +29,7 @@ composition, the defaults, and the convenience layer on top. Rubble is that laye
 | **AgentCore Runtime** | host agent containers, sessions, `/invocations` + `/ping`, A2A | a base image and a Deployment template; sessions persisted to S3 | Rubble + Strands |
 | **AgentCore Gateway** | tools as MCP, A2A passthrough, inbound auth, tool policy | agentgateway: MCP federation, A2A backends, tool authorization | agentgateway |
 | **AgentCore Memory** | short-term sessions, long-term extracted records | Strands sessions on S3; a memory service with extraction strategies (facts, summaries, preferences) | Strands + Rubble |
-| **AgentCore Identity** | workload identity, inbound OAuth, credential vault | SPIFFE/SPIRE workload identity, a bundled pre-configured Keycloak as identity broker, API keys | SPIRE + Keycloak + [spiffe-ext-auth](https://github.com/janfuu) + Rubble |
+| **AgentCore Identity** | workload identity, inbound OAuth, credential vault | SPIFFE/SPIRE workload identity, a bundled pre-configured Keycloak as identity broker, API keys | SPIRE + Keycloak + [spiffe-ext-auth](https://github.com/janfuu/spiffe-ext-auth) + Rubble |
 | **AgentCore Observability** | traces per session, gen-ai span attributes | OpenTelemetry from gateway and SDK → Tempo, Grafana dashboards | OTel + Grafana stack |
 | **AgentCore Policy** | deterministic tool-call rules | a Cedar policy server on agentgateway's MCP guardrail hook; `.cedar` files in git per tenant | Rubble + [cedar-go](https://github.com/cedar-policy/cedar-go) |
 | **AgentCore Registry** | catalog of agents, MCP servers, skills, prompts | [agentregistry](https://github.com/agentregistry-dev/agentregistry) (catalog only, no deploy controller) | agentregistry |
