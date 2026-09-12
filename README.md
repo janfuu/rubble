@@ -13,6 +13,14 @@ account, no per-token bill, your data stays on your disks.
 > settled; the recipe and the first code (SDK + CLI) are being written. Follow the repo if
 > you want to run it, open an issue if you want to shape it.
 
+## Who it is for
+
+Small teams and businesses that want what Bedrock gives them — one model endpoint, agents
+with tools, knowledge bases, memory, guardrails, tenants, an audit trail — on hardware they
+own, without an AWS account. And homelabs, which is where it was built: the reference
+instance is a multi-node cluster with several GPUs. It also runs on a single-node kind
+cluster, so you can try it on a laptop before you commit a rack.
+
 ## What "Bedrock at home" means
 
 Bedrock is not one thing. It is a set of managed services that happen to compose well.
